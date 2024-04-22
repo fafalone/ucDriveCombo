@@ -51,11 +51,11 @@
 		"PictureDpiScaling": true,
 		"Public": true,
 		"RightToLeft": false,
-		"ScaleHeight": 1185,
+		"ScaleHeight": 118.5,
 		"ScaleLeft": 0,
-		"ScaleMode": "vbTwips",
+		"ScaleMode": "vbPixels",
 		"ScaleTop": 0,
-		"ScaleWidth": 1380,
+		"ScaleWidth": 138,
 		"Tag": null,
 		"ToolboxBitmap": "",
 		"Top": 0,
@@ -70,7 +70,7 @@
 			"showGrid": true,
 			"showOutlines": false
 		},
-		"__lastUpdateMarker": 3109316311,
+		"__lastUpdateMarker": 2639213486,
 		"_className": "UserControl",
 		"_clsid": "{33AD5010-6699-11CF-B70C-00AA0060D393}"
 	}
