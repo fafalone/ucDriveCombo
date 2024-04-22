@@ -3,6 +3,14 @@ Modernized DriveList control replacement
 
 ![image](https://github.com/fafalone/ucDriveCombo/assets/7834493/ce6113be-5546-4afd-8956-dca8b049d1c7)
 
+**Files**
+
+* TestUCDC.twinproj - twinBASIC Test Form project
+* ucDriveComboControl.twinproj - twinBASIC Active-X Control  (OCX) build config
+* ucDriveCombo.ctl/ucDriveCombo.ctx/mUCDCHelper.bas - VB6 UserControl files (add these three to your projects using it)
+* Project1.vbp - VB6 Test Form project
+* ucDriveCombo.twin - Browsable source code export from twinBASIC
+
 ```
 '********************************************************************
 ' ucDriveCombo v1.0
