@@ -6,9 +6,11 @@ Modernized DriveList control replacement
 **Files**
 
 * TestUCDC.twinproj - twinBASIC Test Form project
+* ucDriveComboTest.vbp - VB6 Test Form project
+* ucDriveComboPackage.twinpack - twinBASIC Package version of control
+* ucDriveComboPackage.twinproj - Package build configuration project
 * ucDriveComboControl.twinproj - twinBASIC Active-X Control  (OCX) build config
 * ucDriveCombo.ctl/ucDriveCombo.ctx/mUCDCHelper.bas - VB6 UserControl files (add these three to your projects using it)
-* Project1.vbp - VB6 Test Form project
 * ucDriveCombo.twin - Browsable source code export from twinBASIC
 
 ```
