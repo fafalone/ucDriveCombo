@@ -38,13 +38,13 @@ Begin VB.Form Form1
       Width           =   375
    End
    Begin ucDriveComboTest.ucDriveCombo ucDriveCombo1 
-      Height          =   615
+      Height          =   315
       Left            =   360
       TabIndex        =   1
       Top             =   240
       Width           =   3735
       _ExtentX        =   6588
-      _ExtentY        =   1085
+      _ExtentY        =   556
    End
    Begin VB.CommandButton Command1 
       Caption         =   "Show Path"

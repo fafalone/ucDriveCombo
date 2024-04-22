@@ -4,8 +4,9 @@ Begin VB.UserControl ucDriveCombo
    ClientLeft      =   0
    ClientTop       =   0
    ClientWidth     =   1860
-   ScaleHeight     =   1050
-   ScaleWidth      =   1860
+   ScaleHeight     =   70
+   ScaleMode       =   3  'Pixel
+   ScaleWidth      =   124
    ToolboxBitmap   =   "ucDriveCombo.ctx":0000
 End
 Attribute VB_Name = "ucDriveCombo"
@@ -16,7 +17,8 @@ Attribute VB_Exposed = False
 Option Explicit
 
 '********************************************************************
-' ucDriveCombo v1.0
+' ucDriveCombo v1.1
+' A Modern DriveList Replacement
 ' by Jon Johnson
 '
 ' Provides a modernized option for a Drive Combo without the extra
@@ -39,6 +41,15 @@ Option Explicit
 '   -Can optionally classify USB hard drives as removable.
 '
 ' Changelog:
+'  Version 1.1 (Released 22 Apr 2024)
+'   -Autosize UC height to combo height
+'   -Custom drop width now DPI aware
+'   -FocusDriveList method to hopefully partially defray the lack of
+'      a massive and usually typelib dependent in-place activation
+'      hook to handle tab properly. Recommend ucShellBrowse if you
+'      need proper tab key support.
+'   -(Bug fix) DPI variable overridden by old test line.
+'
 '  Version 1.0 (Released 22 Apr 2024)
 '   -Add Property Lets for SelectedDrive_____
 '   -Add device add/remove monitoring via RegisterDeviceNotification
@@ -77,6 +88,11 @@ Private Const WC_COMBOBOXEX = "ComboBoxEx32"
     Private Declare PtrSafe Function RegisterDeviceNotification Lib "user32" Alias "RegisterDeviceNotificationW" (ByVal hRecipient As LongPtr, NotificationFilter As Any, ByVal Flags As DEVICE_NOTIFY_FLAGS) As LongPtr
     Private Declare PtrSafe Function UnregisterDeviceNotification Lib "user32" (ByVal Handle As LongPtr) As BOOL
     Private Declare PtrSafe Function DestroyWindow Lib "user32" (ByVal hWnd As LongPtr) As Long
+    Private Declare PtrSafe Function MoveWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal X As Long, ByVal Y As Long, ByVal nWidth As Long, ByVal nHeight As Long, ByVal bRepaint As Long) As Long
+    Private Declare PtrSafe Function EnableWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal fEnable As BOOL) As Long
+    Private Declare PtrSafe Function RedrawWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal lprcUpdate As LongPtr, ByVal hrgnUpdate As LongPtr, ByVal fuRedraw As Long) As Long
+    Private Declare PtrSafe Function GetWindowRect Lib "user32" (ByVal hWnd As LongPtr, ByRef lpRect As RECT) As Long
+    Private Declare PtrSafe Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hWnd As LongPtr) As LongPtr
 #Else
     Private Enum LongPtr
         vbNullPtr
@@ -105,7 +121,12 @@ Private Const WC_COMBOBOXEX = "ComboBoxEx32"
     Private Declare Function RegisterDeviceNotification Lib "user32" Alias "RegisterDeviceNotificationW" (ByVal hRecipient As LongPtr, NotificationFilter As Any, ByVal Flags As DEVICE_NOTIFY_FLAGS) As LongPtr
     Private Declare Function UnregisterDeviceNotification Lib "user32" (ByVal Handle As LongPtr) As BOOL
     Private Declare Function DestroyWindow Lib "user32" (ByVal hWnd As LongPtr) As Long
-#End If
+    Private Declare Function MoveWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal X As Long, ByVal Y As Long, ByVal nWidth As Long, ByVal nHeight As Long, ByVal bRepaint As Long) As Long
+    Private Declare Function EnableWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal fEnable As BOOL) As Long
+    Private Declare Function RedrawWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal lprcUpdate As LongPtr, ByVal hrgnUpdate As LongPtr, ByVal fuRedraw As Long) As Long
+    Private Declare Function GetWindowRect Lib "user32" (ByVal hWnd As LongPtr, ByRef lpRect As RECT) As Long
+    Private Declare Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hWnd As LongPtr) As LongPtr
+    #End If
 
 Private Type RECT
     Left As Long
@@ -548,7 +569,6 @@ Private Sub UserControl_Initialize() 'Handles UserControl.Initialize
     hDC = GetDC(0&)
     mDPI = GetDeviceCaps(hDC, LOGPIXELSY) / 96
     ReleaseDC 0&, hDC
-    mDPI = 1
     mWindows = String$(MAX_PATH, 0)
     Dim lRet As Long
     lRet = GetWindowsDirectoryW(StrPtr(mWindows), MAX_PATH) 'for picking default drive
@@ -598,11 +618,19 @@ Private Sub UserControl_InitProperties() 'Handles UserControl.InitProperties
 End Sub
 
 Private Sub UserControl_Resize() 'Handles UserControl.Resize
-    If hMain Then
-       Dim rc As RECT
-       GetClientRect UserControl.hWnd, rc
-       SetWindowPos hMain, 0, 0, 0, rc.Right, cyList * mDPI, SWP_NOMOVE Or SWP_NOZORDER
+If hMain Then
+    Dim rc As RECT
+    Dim rcWnd As RECT
+    GetClientRect UserControl.hWnd, rc
+    SetWindowPos hMain, 0, 0, 0, rc.Right, cyList * mDPI, SWP_NOMOVE Or SWP_NOZORDER
+    With UserControl
+    MoveWindow hMain, 0, 0, .ScaleWidth, .ScaleHeight, 1
+    GetWindowRect hMain, rcWnd
+    If (rcWnd.Bottom - rcWnd.Top) <> .ScaleHeight Or (rcWnd.Right - rcWnd.Left) <> .ScaleWidth Then
+        .Extender.Height = .ScaleY((rcWnd.Bottom - rcWnd.Top), vbPixels, vbContainerSize)
     End If
+    End With
+End If
 End Sub
 
 Public Property Get BackColor() As OLE_COLOR: BackColor = mBk: End Property
@@ -619,7 +647,7 @@ Public Property Get DriveComboHwnd() As LongPtr: DriveComboHwnd = hMain: End Pro
 #Else
 Public Property Get DriveComboHwnd() As Long: DriveComboHwnd = hMain: End Property
 #End If
-    
+
 Public Property Get MonitorChanges() As Boolean: MonitorChanges = mStd: End Property
 Attribute MonitorChanges.VB_Description = "Monitor for drives being added and removed and update list accordingly."
 Public Property Let MonitorChanges(ByVal Value As Boolean)
@@ -643,7 +671,7 @@ Public Property Let MonitorChanges(ByVal Value As Boolean)
         End If
     End If
 End Property
-    
+
 Public Property Get ShowStandardDrives() As Boolean: ShowStandardDrives = mStd: End Property
 Attribute ShowStandardDrives.VB_Description = "Include standard internal hard drives in the list."
 Public Property Let ShowStandardDrives(ByVal Value As Boolean)
@@ -691,7 +719,7 @@ Public Property Let DropdownWidth(ByVal Value As Long)
                 GetClientRect hMain, rc
                 SendMessage hMain, CB_SETDROPPEDWIDTH, rc.Right, ByVal 0
             Else
-                SendMessage hMain, CB_SETDROPPEDWIDTH, cxList, ByVal 0
+                SendMessage hMain, CB_SETDROPPEDWIDTH, cxList * mDPI, ByVal 0
             End If
         End If
     End If
@@ -799,7 +827,7 @@ Public Property Get SelectedDriveType() As Long
         SelectedDriveType = mDrives(nIdx).Type
     End If
 End Property
-    
+
 Public Property Get DriveCount() As Long
     DriveCount = mCt
 End Property
@@ -854,16 +882,16 @@ Private Function GetSysImageList(uFlags As SHGFI_flags) As LongPtr
     End If
     ' Any valid file system path can be used to retrieve system image list handles.
     GetSysImageList = SHGetFileInfoW(ByVal StrPtr(sSys), 0, sfi, LenB(sfi), SHGFI_SYSICONINDEX Or uFlags)
-End Function
-Private Function GetIconIndex(ByVal sPath As String, uType As Long) As Long
+    End Function
+    Private Function GetIconIndex(ByVal sPath As String, uType As Long) As Long
     Dim sfi As SHFILEINFOW
     If SHGetFileInfoW(ByVal StrPtr(sPath), 0, sfi, LenB(sfi), SHGFI_SYSICONINDEX Or uType) Then
         GetIconIndex = sfi.iIcon
     End If
-End Function
+    End Function
 
-' Private Sub UserControl_Show() 'Handles UserControl.Show
-Private Sub InitControl()
+    ' Private Sub UserControl_Show() Handles UserControl.Show
+    Private Sub InitControl()
     Debug.Print "UserControl_Show"
     Me.BackColor = mBk
     himl = GetSysImageList(SHGFI_SMALLICON)
@@ -878,37 +906,37 @@ Private Sub InitControl()
     GetClientRect UserControl.hWnd, rc
     hMain = CreateWindowExW(0, StrPtr(WC_COMBOBOXEX), 0, dwStyle, _
                             0, 0, rc.Right, cyList * mDPI, UserControl.hWnd, 0, App.hInstance, ByVal 0)
-    
+
     hCB = SendMessage(hMain, CBEM_GETCOMBOCONTROL, 0, ByVal 0&)
     hEdit = SendMessage(hMain, CBEM_GETEDITCONTROL, 0, ByVal 0&)
-    
+
     SendMessage hEdit, EM_SETREADONLY, 1&, ByVal 0&
-    
+
     If Ambient.UserMode Then
         Call SendMessage(hMain, CBEM_SETIMAGELIST, 0, ByVal himl)
         Subclass2 hMain, AddressOf ucDriveComboWndProc, hMain, ObjPtr(Me)
         RefreshDriveList
         Dim tFilter As DEV_BROADCAST_DEVICEINTERFACE
         tFilter.dbcc_size = 32 'We can't use LenB because it uses the size above 28 to calculate
-                               'the length of the string in the C-style variable array on the end.
-                               'It's declared with a buffer since VB/tB don't support those, but if
-                               'the buffer isn't in use, use what we'd get for sizeof() if it wasn't
-                               'used in C++.
+                                'the length of the string in the C-style variable array on the end.
+                                'It's declared with a buffer since VB/tB don't support those, but if
+                                'the buffer isn't in use, use what we'd get for sizeof() if it wasn't
+                                'used in C++.
         tFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE
         tFilter.dbcc_classguid = GUID_DEVINTERFACE_VOLUME
         hNotify = RegisterDeviceNotification(hMain, tFilter, DEVICE_NOTIFY_WINDOW_HANDLE)
     End If
-    
-    
+
+
 End Sub
 
-  Private Sub UserControl_Terminate() 'Handles UserControl.Terminate
-      If hNotify Then
-          UnregisterDeviceNotification hNotify
-          hNotify = 0
-      End If
-      DestroyWindow hMain
-  End Sub
+Private Sub UserControl_Terminate() 'Handles UserControl.Terminate
+    If hNotify Then
+        UnregisterDeviceNotification hNotify
+        hNotify = 0
+    End If
+    DestroyWindow hMain
+End Sub
 
 Private Sub AnalyzeAddRemove()
     Dim i As Long, j As Long
@@ -930,10 +958,10 @@ Private Sub AnalyzeAddRemove()
     For i = 0 To UBound(mDrives)
         bFound = False
         For j = 0 To UBound(mDrivesPrv)
-          If LCase$(mDrives(i).Path) = LCase$(mDrivesPrv(j).Path) Then
-              bFound = True
-              Exit For
-          End If
+            If LCase$(mDrives(i).Path) = LCase$(mDrivesPrv(j).Path) Then
+                bFound = True
+                Exit For
+            End If
         Next
         If bFound = False Then
             RaiseEvent DriveAdded(mDrives(i).Path, mDrives(i).Letter, mDrives(i).Name, mDrives(i).Type, False)
@@ -944,10 +972,10 @@ Private Sub AnalyzeAddRemove()
     For i = 0 To UBound(mDrivesPrv)
         bFound = False
         For j = 0 To UBound(mDrives)
-          If LCase$(mDrivesPrv(i).Path) = LCase$(mDrives(j).Path) Then
-              bFound = True
-              Exit For
-          End If
+            If LCase$(mDrivesPrv(i).Path) = LCase$(mDrives(j).Path) Then
+                bFound = True
+                Exit For
+            End If
         Next
         If bFound = False Then
             RaiseEvent DriveRemoved(mDrivesPrv(i).Path, mDrivesPrv(i).Letter, mDrivesPrv(i).Name, mDrivesPrv(i).Type)
@@ -981,7 +1009,7 @@ Public Sub RefreshDriveList()
     Dim pidl As LongPtr
     Dim lpName As LongPtr
     Dim dwAtr As Long
-    
+
     cch = GetLogicalDriveStringsW(Len(sDriveLst), StrPtr(sDriveLst))
     Debug.Print "cch=" & cch & ", str=" & sDriveLst
     If cch > 0 Then
@@ -1032,9 +1060,9 @@ nxt:
 End Sub
 Private Function CBX_InsertItem(ByVal hCBoxEx As LongPtr, sText As String, Optional iImage As Long = -1, Optional iOverlay As Long = -1, Optional lParam As Long = 0, Optional iItem As Long = -1, Optional iIndent As Long = 0, Optional iImageSel As Long = -1) As Long
 
-Dim cbxi As COMBOBOXEXITEMW
+    Dim cbxi As COMBOBOXEXITEMW
 
-With cbxi
+    With cbxi
     .Mask = CBEIF_TEXT
     .cchTextMax = Len(sText)
     .pszText = StrPtr(sText)
@@ -1059,27 +1087,32 @@ With cbxi
     Else
         .iSelectedImage = iImage
     End If
-    
+
     .iItem = iItem
-    
-End With
+
+    End With
 
     CBX_InsertItem = CLng(SendMessage(hCBoxEx, CBEM_INSERTITEMW, 0, cbxi))
 
 End Function
 Private Function GetCBXItemlParam(hWnd As LongPtr, i As Long) As LongPtr
-Dim cbxi As COMBOBOXEXITEMW
-With cbxi
+    Dim cbxi As COMBOBOXEXITEMW
+    With cbxi
     .Mask = CBEIF_LPARAM
     .iItem = i
-End With
-If SendMessage(hWnd, CBEM_GETITEMW, 0, cbxi) Then
+    End With
+    If SendMessage(hWnd, CBEM_GETITEMW, 0, cbxi) Then
     GetCBXItemlParam = cbxi.lParam
-Else
+    Else
     GetCBXItemlParam = -1
-End If
+    End If
 End Function
 
+Public Sub FocusDriveList()
+    UserControl.SetFocus()
+    SetFocusAPI UserControl.ContainerHwnd
+    SetFocusAPI hMain
+End Sub
 Private Function IsTrueRemovable(DrvLetter As String) As Boolean
     Dim hVol As LongPtr
     Dim r As Long
@@ -1096,24 +1129,24 @@ Private Function IsTrueRemovable(DrvLetter As String) As Boolean
 End Function
 
 Private Function LPWSTRtoStr(lPtr As LongPtr, Optional ByVal fFree As Boolean = True) As String
-SysReAllocStringW VarPtr(LPWSTRtoStr), lPtr
-If fFree Then
+    SysReAllocStringW VarPtr(LPWSTRtoStr), lPtr
+    If fFree Then
     Call CoTaskMemFree(lPtr)
-End If
+    End If
 End Function
 Private Sub DEFINE_UUID(Name As UUID, L As Long, w1 As Integer, w2 As Integer, B0 As Byte, b1 As Byte, b2 As Byte, B3 As Byte, b4 As Byte, b5 As Byte, b6 As Byte, b7 As Byte)
-  With Name
+    With Name
     .Data1 = L: .Data2 = w1: .Data3 = w2: .Data4(0) = B0: .Data4(1) = b1: .Data4(2) = b2: .Data4(3) = B3: .Data4(4) = b4: .Data4(5) = b5: .Data4(6) = b6: .Data4(7) = b7
-  End With
+    End With
 End Sub
 Private Function GUID_DEVINTERFACE_VOLUME() As UUID
-Static iid As UUID
- If (iid.Data1 = 0) Then Call DEFINE_UUID(iid, &H53F5630D, &HB6BF, &H11D0, &H94, &HF2, &H0, &HA0, &HC9, &H1E, &HFB, &H8B)
-GUID_DEVINTERFACE_VOLUME = iid
+    Static iid As UUID
+    If (iid.Data1 = 0) Then Call DEFINE_UUID(iid, &H53F5630D, &HB6BF, &H11D0, &H94, &HF2, &H0, &HA0, &HC9, &H1E, &HFB, &H8B)
+    GUID_DEVINTERFACE_VOLUME = iid
 End Function
 
 Private Function Subclass2(hWnd As LongPtr, lpFN As LongPtr, Optional uId As LongPtr = 0&, Optional dwRefData As LongPtr = 0&) As Boolean
-If uId = 0 Then uId = hWnd
+    If uId = 0 Then uId = hWnd
     Subclass2 = SetWindowSubclass(hWnd, lpFN, uId, dwRefData):      Debug.Assert Subclass2
 End Function
 
@@ -1127,52 +1160,50 @@ Private Function FARPROC(ByVal pfn As LongPtr) As LongPtr
     FARPROC = pfn
 End Function
 Private Function HiWord(ByVal DWord As Long) As Integer
-HiWord = (DWord And &HFFFF0000) \ &H10000
+    HiWord = (DWord And &HFFFF0000) \ &H10000
 End Function
-#If TWINBASIC = 0 Then
-Public Function zzCBWndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal uIdSubclass As Long) As Long
-#Else
+#If TWINBASIC Then
 Public Function zzCBWndProc(ByVal hWnd As LongPtr, ByVal uMsg As Long, ByVal wParam As LongPtr, ByVal lParam As LongPtr, ByVal uIdSubclass As LongPtr) As LongPtr
+#Else
+Public Function zzCBWndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam As Long, ByVal lParam As Long, ByVal uIdSubclass As Long) As Long
 #End If
     Select Case uMsg
-      Case WM_NOTIFYFORMAT
+        Case WM_NOTIFYFORMAT
         '   DebugAppend "Got NFMT on CBWndProc"
-          zzCBWndProc = NFR_UNICODE
-          Exit Function
-          
-      Case WM_DEVICECHANGE
-          If (wParam = DBT_DEVICEARRIVAL) Or (wParam = DBT_DEVICEREMOVECOMPLETE) Then
-              'We only registered for GUID_DEVINTERFACE_VOLUME so if we're here,
-              'it's a volume add/remove, not other hardware.
-              RefreshDriveList
-          End If
-          
-      Case WM_COMMAND
-          Dim lCode As Long
-          lCode = HiWord(CLng(wParam))
-          Select Case lCode
-              Case CBN_SELCHANGE
-                  Dim nIdx As Long
-                  Dim nSel As Long
-                  nSel = CLng(SendMessage(hMain, CB_GETCURSEL, 0, ByVal 0))
-                  nIdx = -1
-                  nIdx = CLng(GetCBXItemlParam(hMain, nSel))
-                  RaiseEvent SelectionChanged(mDrives(nIdx).Path, mDrives(nIdx).Letter, mDrives(nIdx).Name, mDrives(nIdx).Type)
-              Case CBN_DROPDOWN
-
-                  RaiseEvent DriveListDropdown
+            zzCBWndProc = NFR_UNICODE
+            Exit Function
             
-              Case CBN_CLOSEUP
-                  RaiseEvent DriveListCloseup
+        Case WM_DEVICECHANGE
+            If (wParam = DBT_DEVICEARRIVAL) Or (wParam = DBT_DEVICEREMOVECOMPLETE) Then
+                'We only registered for GUID_DEVINTERFACE_VOLUME so if we're here,
+                'it's a volume add/remove, not other hardware.
+                RefreshDriveList
+            End If
+            
+        Case WM_COMMAND
+            Dim lCode As Long
+            lCode = HiWord(CLng(wParam))
+            Select Case lCode
+                Case CBN_SELCHANGE
+                    Dim nIdx As Long
+                    Dim nSel As Long
+                    nSel = CLng(SendMessage(hMain, CB_GETCURSEL, 0, ByVal 0))
+                    nIdx = -1
+                    nIdx = CLng(GetCBXItemlParam(hMain, nSel))
+                    RaiseEvent SelectionChanged(mDrives(nIdx).Path, mDrives(nIdx).Letter, mDrives(nIdx).Name, mDrives(nIdx).Type)
+                Case CBN_DROPDOWN
+
+                    RaiseEvent DriveListDropdown
+            
+                Case CBN_CLOSEUP
+                    RaiseEvent DriveListCloseup
             End Select
-      Case WM_DESTROY
-          Call UnSubclass2(hWnd, PtrCbWndProc, uIdSubclass)
-  End Select
-  zzCBWndProc = DefSubclassProc(hWnd, uMsg, wParam, lParam)
-  Exit Function
+        Case WM_DESTROY
+            Call UnSubclass2(hWnd, PtrCbWndProc, uIdSubclass)
+    End Select
+    zzCBWndProc = DefSubclassProc(hWnd, uMsg, wParam, lParam)
+    Exit Function
 e0:
-  Debug.Print "CBWndProc->Error: " & Err.Description & ", 0x" & Hex$(Err.Number)
+    Debug.Print "CBWndProc->Error: " & Err.Description & ", 0x" & Hex$(Err.Number)
 
-  End Function
-  
-
+End Function
