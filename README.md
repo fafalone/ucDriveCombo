@@ -1,4 +1,4 @@
-# ucDriveCombo v1.1 (Updated 22 Apr 2024)
+# ucDriveCombo v1.2 (Updated 22 Apr 2024)
 Modernized DriveList control replacement
 
 ![image](https://github.com/fafalone/ucDriveCombo/assets/7834493/ce6113be-5546-4afd-8956-dca8b049d1c7)
@@ -13,7 +13,7 @@ Modernized DriveList control replacement
 
 ```
 '********************************************************************
-' ucDriveCombo v1.1
+' ucDriveCombo v1.2
 ' A Modern DriveList Replacement
 ' by Jon Johnson
 '
@@ -37,6 +37,15 @@ Modernized DriveList control replacement
 '   -Can optionally classify USB hard drives as removable.
 '
 ' Changelog:
+'  Version 1.2 (Released 22 Apr 2024)
+'   -Add Drive property get/let for compatibility with DriveList;
+'     it behaves identically to .SelectDriveName.
+'   -DriveCount is now ListCount, for DriveList compat. Also added
+'     .ListIndex for selected index, and .List, same as GetDriveName.
+'   -Add Enabled property get/let.
+'   -(Bug fix) FocusDriveList VB6 syntax error
+'   -(Bug fix) VB6 control bottom cut off
+'
 '  Version 1.1 (Released 22 Apr 2024)
 '   -Autosize UC height to combo height
 '   -Custom drop width now DPI aware
