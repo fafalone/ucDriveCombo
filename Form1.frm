@@ -73,6 +73,7 @@ End Sub
 Private Sub Command3_Click()
     ucDriveCombo1.RefreshDriveList
 End Sub
+ 
 
 Private Sub ucDriveCombo1_SelectionChanged(ByVal NewPath As String, ByVal NewLetter As String, ByVal NewName As String, ByVal NewDriveType As Long)
     Debug.Print "Selected drive changed to " & NewPath

@@ -9,7 +9,7 @@ Class ucDriveCombo
 Option Explicit
 
 '********************************************************************
-' ucDriveCombo v1.1
+' ucDriveCombo v1.2
 ' A Modern DriveList Replacement
 ' by Jon Johnson
 '
@@ -33,6 +33,15 @@ Option Explicit
 '   -Can optionally classify USB hard drives as removable.
 '
 ' Changelog:
+'  Version 1.2 (Released 22 Apr 2024)
+'   -Add Drive property get/let for compatibility with DriveList;
+'     it behaves identically to .SelectDriveName.
+'   -DriveCount is now ListCount, for DriveList compat. Also added
+'     .ListIndex for selected index, and .List, same as GetDriveName.
+'   -Add Enabled property get/let.
+'   -(Bug fix) FocusDriveList VB6 syntax error
+'   -(Bug fix) VB6 control bottom cut off
+'
 '  Version 1.1 (Released 22 Apr 2024)
 '   -Autosize UC height to combo height
 '   -Custom drop width now DPI aware
@@ -41,6 +50,7 @@ Option Explicit
 '      hook to handle tab properly. Recommend ucShellBrowse if you
 '      need proper tab key support.
 '   -(Bug fix) DPI variable overridden by old test line.
+'   -(Bug fix) VB6 control bottom cut off
 '
 '  Version 1.0 (Released 22 Apr 2024)
 '   -Add Property Lets for SelectedDrive_____
@@ -55,6 +65,7 @@ Private Enum BOOL
     CTRUE
 End Enum
 Private Const WC_COMBOBOXEX = "ComboBoxEx32"
+
 #If TWINBASIC Then
     Private Declare PtrSafe Function SendMessage Lib "user32" Alias "SendMessageW" (ByVal hWnd As LongPtr, ByVal wMsg As Long, ByVal wParam As LongPtr, lParam As Any) As LongPtr
     Private Declare PtrSafe Function CreateFileW Lib "kernel32" (ByVal lpFileName As LongPtr, ByVal dwDesiredAccess As Long, ByVal dwShareMode As FileShareMode, lpSecurityAttributes As SECURITY_ATTRIBUTES, ByVal dwCreationDisposition As CreateFileDisposition, ByVal dwFlagsAndAttributes As Long, ByVal hTemplateFile As LongPtr) As LongPtr
@@ -81,11 +92,11 @@ Private Const WC_COMBOBOXEX = "ComboBoxEx32"
     Private Declare PtrSafe Function UnregisterDeviceNotification Lib "user32" (ByVal Handle As LongPtr) As BOOL
     Private Declare PtrSafe Function DestroyWindow Lib "user32" (ByVal hWnd As LongPtr) As Long
     Private Declare PtrSafe Function MoveWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal X As Long, ByVal Y As Long, ByVal nWidth As Long, ByVal nHeight As Long, ByVal bRepaint As Long) As Long
-    Private Declare PtrSafe Function EnableWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal fEnable As BOOL) As Long
+    Private Declare PtrSafe Function EnableWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal fEnable As BOOL) As BOOL
     Private Declare PtrSafe Function RedrawWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal lprcUpdate As LongPtr, ByVal hrgnUpdate As LongPtr, ByVal fuRedraw As Long) As Long
     Private Declare PtrSafe Function GetWindowRect Lib "user32" (ByVal hWnd As LongPtr, ByRef lpRect As RECT) As Long
     Private Declare PtrSafe Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hWnd As LongPtr) As LongPtr
-#Else
+    #Else
     Private Enum LongPtr
         vbNullPtr
     End Enum
@@ -114,7 +125,7 @@ Private Const WC_COMBOBOXEX = "ComboBoxEx32"
     Private Declare Function UnregisterDeviceNotification Lib "user32" (ByVal Handle As LongPtr) As BOOL
     Private Declare Function DestroyWindow Lib "user32" (ByVal hWnd As LongPtr) As Long
     Private Declare Function MoveWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal X As Long, ByVal Y As Long, ByVal nWidth As Long, ByVal nHeight As Long, ByVal bRepaint As Long) As Long
-    Private Declare Function EnableWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal fEnable As BOOL) As Long
+    Private Declare Function EnableWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal fEnable As BOOL) As BOOL
     Private Declare Function RedrawWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal lprcUpdate As LongPtr, ByVal hrgnUpdate As LongPtr, ByVal fuRedraw As Long) As Long
     Private Declare Function GetWindowRect Lib "user32" (ByVal hWnd As LongPtr, ByRef lpRect As RECT) As Long
     Private Declare Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hWnd As LongPtr) As LongPtr
@@ -521,6 +532,9 @@ Private Const mDefBk As Long = &H8000000F&
 Private mNotify As Boolean
 Private Const mDefNotify As Boolean = True
 
+Private mEnabled As Boolean
+Private Const mDefEnabled As Boolean = True
+
 #If TWINBASIC Then
 [EnumId("55209AC8-57EA-4644-AA85-4974AA31E100")]
 #End If
@@ -580,6 +594,7 @@ Private Sub UserControl_ReadProperties(PropBag As PropertyBag) 'Handles UserCont
     mHP = PropBag.ReadProperty("NoFixedUSB", mDefHP)
     mBk = PropBag.ReadProperty("BackColor", mDefBk)
     mNotify = PropBag.ReadProperty("MonitorChanges", mDefNotify)
+    mEnabled = PropBag.ReadProperty("Enabled", mDefEnabled)
     InitControl
 End Sub
 
@@ -594,6 +609,7 @@ Private Sub UserControl_WriteProperties(PropBag As PropertyBag) 'Handles UserCon
     PropBag.WriteProperty "NoFixedUSB", mHP, mDefHP
     PropBag.WriteProperty "BackColor", mBk, mDefBk
     PropBag.WriteProperty "MonitorChanges", mNotify, mDefNotify
+    PropBag.WriteProperty "Enabled", mEnabled, mDefEnabled
 End Sub
 
 Private Sub UserControl_InitProperties() 'Handles UserControl.InitProperties
@@ -633,6 +649,21 @@ End Property
 Public Property Get ComboStyle() As UCDCType: ComboStyle = mStyle: End Property
 Attribute ComboStyle.VB_Description = "Sets the type of combobox used. Cannnot be changed during runtime."
 Public Property Let ComboStyle(ByVal Value As UCDCType): mStyle = Value: End Property
+    
+Public Property Get Enabled() As Boolean: Enabled = mEnabled: End Property
+Attribute Enabled.VB_Description = "Sets whether the control is enabled."
+Public Property Let Enabled(ByVal fEnable As Boolean)
+    If fEnable <> mEnabled Then
+        mEnabled = fEnable
+        If hMain Then
+            If mEnabled Then
+                EnableWindow hMain, CTRUE
+            Else
+                EnableWindow hMain, CFALSE
+            End If
+        End If
+    End If
+End Property
 
 #If TWINBASIC Then
 Public Property Get DriveComboHwnd() As LongPtr: DriveComboHwnd = hMain: End Property
@@ -787,6 +818,31 @@ Public Property Let SelectedDriveName(ByVal sName As String)
     End If
 End Property
 
+Public Property Get Drive() As String
+    If Ambient.UserMode Then
+        Dim nIdx As Long
+        Dim nSel As Long
+        nSel = CLng(SendMessage(hMain, CB_GETCURSEL, 0, ByVal 0))
+        nIdx = -1
+        nIdx = CLng(GetCBXItemlParam(hMain, nSel))
+        Drive = mDrives(nIdx).Name
+    End If
+End Property
+Attribute Drive.VB_MemberFlags = "400"
+Public Property Let Drive(ByVal sName As String)
+    If Ambient.UserMode Then
+        If mCt Then
+            Dim i As Long
+            For i = 0 To UBound(mDrives)
+                If LCase$(mDrives(i).Name) = LCase$(sName) Then
+                    SendMessage hMain, CB_SETCURSEL, mDrives(i).Index, ByVal 0
+                    RaiseEvent SelectionChanged(mDrives(i).Path, mDrives(i).Letter, mDrives(i).Name, mDrives(i).Type)
+                End If
+            Next
+        End If
+    End If
+End Property
+
 Public Property Get SelectedDrivePath() As String
     If Ambient.UserMode Then
         Dim nIdx As Long
@@ -823,9 +879,15 @@ Public Property Get SelectedDriveType() As Long
     End If
 End Property
 
-Public Property Get DriveCount() As Long
-    DriveCount = mCt
+Public Property Get ListCount() As Long
+    ListCount = mCt
 End Property
+Public Property Get ListIndex() As Long
+    ListIndex = CLng(SendMessage(hMain, CB_GETCURSEL, 0, ByVal 0))
+End Property
+Public Function List(ByVal nIndex As Long) As String
+    List = GetDriveName(nIndex)
+End Function
 
 Public Function GetDriveName(ByVal nItem As Long) As String
     If Ambient.UserMode Then
@@ -922,7 +984,11 @@ Private Function GetSysImageList(uFlags As SHGFI_flags) As LongPtr
         hNotify = RegisterDeviceNotification(hMain, tFilter, DEVICE_NOTIFY_WINDOW_HANDLE)
     End If
 
-
+    If mEnabled = False Then
+        EnableWindow hMain, CFALSE
+    End If
+    
+    UserControl_Resize
 End Sub
 
 Private Sub UserControl_Terminate() 'Handles UserControl.Terminate
@@ -1104,7 +1170,7 @@ Private Function GetCBXItemlParam(hWnd As LongPtr, i As Long) As LongPtr
 End Function
 
 Public Sub FocusDriveList()
-    UserControl.SetFocus()
+    UserControl.SetFocus
     SetFocusAPI UserControl.ContainerHwnd
     SetFocusAPI hMain
 End Sub
