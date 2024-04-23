@@ -9,7 +9,7 @@ Class ucDriveCombo
 Option Explicit
 
 '********************************************************************
-' ucDriveCombo v1.2
+' ucDriveCombo v1.3
 ' A Modern DriveList Replacement
 ' by Jon Johnson
 '
@@ -33,6 +33,12 @@ Option Explicit
 '   -Can optionally classify USB hard drives as removable.
 '
 ' Changelog:
+'  Version 1.3 (Released 23 Apr 2024)
+'   -The .Drive property now returns names identical to the legacy
+'     DriveList control, and when set, behaves identical to that
+'     as well, only comparing the first letter.
+'   -(Bug fix) ShowRemovableDrives toggled network drives instead.
+'
 '  Version 1.2 (Released 22 Apr 2024)
 '   -Add Drive property get/let for compatibility with DriveList;
 '     it behaves identically to .SelectDriveName.
@@ -50,7 +56,6 @@ Option Explicit
 '      hook to handle tab properly. Recommend ucShellBrowse if you
 '      need proper tab key support.
 '   -(Bug fix) DPI variable overridden by old test line.
-'   -(Bug fix) VB6 control bottom cut off
 '
 '  Version 1.0 (Released 22 Apr 2024)
 '   -Add Property Lets for SelectedDrive_____
@@ -96,6 +101,7 @@ Private Const WC_COMBOBOXEX = "ComboBoxEx32"
     Private Declare PtrSafe Function RedrawWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal lprcUpdate As LongPtr, ByVal hrgnUpdate As LongPtr, ByVal fuRedraw As Long) As Long
     Private Declare PtrSafe Function GetWindowRect Lib "user32" (ByVal hWnd As LongPtr, ByRef lpRect As RECT) As Long
     Private Declare PtrSafe Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hWnd As LongPtr) As LongPtr
+    Private Declare PtrSafe Function GetVolumeInformationW Lib "kernel32" (ByVal lpRootPathName As LongPtr, ByVal lpVolumeNameBuffer As LongPtr, ByVal nVolumeNameSize As Long, lpVolumeSerialNumber As Long, lpMaximumComponentLength As Long, lpFileSystemFlags As Long, ByVal lpFileSystemNameBuffer As LongPtr, ByVal nFileSystemNameSize As Long) As BOOL
     #Else
     Private Enum LongPtr
         vbNullPtr
@@ -129,6 +135,7 @@ Private Const WC_COMBOBOXEX = "ComboBoxEx32"
     Private Declare Function RedrawWindow Lib "user32" (ByVal hWnd As LongPtr, ByVal lprcUpdate As LongPtr, ByVal hrgnUpdate As LongPtr, ByVal fuRedraw As Long) As Long
     Private Declare Function GetWindowRect Lib "user32" (ByVal hWnd As LongPtr, ByRef lpRect As RECT) As Long
     Private Declare Function SetFocusAPI Lib "user32" Alias "SetFocus" (ByVal hWnd As LongPtr) As LongPtr
+    Private Declare Function GetVolumeInformationW Lib "kernel32" (ByVal lpRootPathName As LongPtr, ByVal lpVolumeNameBuffer As LongPtr, ByVal nVolumeNameSize As Long, lpVolumeSerialNumber As Long, lpMaximumComponentLength As Long, lpFileSystemFlags As Long, ByVal lpFileSystemNameBuffer As LongPtr, ByVal nFileSystemNameSize As Long) As BOOL
     #End If
 
 Private Type RECT
@@ -556,9 +563,10 @@ Public Event DriveListDropdown()
 Public Event DriveListCloseup()
 
 Private Type DriveEntry
-    Name As String
+    Name As String 'i.e. Local disk (C:)
     Letter As String 'i.e. C
     Path As String 'i.e. C:\
+    NameOld As String 'Name formatted like old drive control, i.e. c: [Local disk]
     Type As DriveTypes
     Removed As Boolean
     nIcon As Long
@@ -762,8 +770,8 @@ End Property
 Public Property Get ShowRemovableDrives() As Boolean: ShowRemovableDrives = mNet: End Property
 Attribute ShowRemovableDrives.VB_Description = "Include removable drives like USB flash drives in the list."
 Public Property Let ShowRemovableDrives(ByVal Value As Boolean)
-    If Value <> mNet Then
-        mNet = Value
+    If Value <> mUSB Then
+        mUSB = Value
         If Ambient.UserMode Then RefreshDriveList
     End If
 End Property
@@ -825,7 +833,7 @@ Public Property Get Drive() As String
         nSel = CLng(SendMessage(hMain, CB_GETCURSEL, 0, ByVal 0))
         nIdx = -1
         nIdx = CLng(GetCBXItemlParam(hMain, nSel))
-        Drive = mDrives(nIdx).Name
+        Drive = mDrives(nIdx).NameOld
     End If
 End Property
 Attribute Drive.VB_MemberFlags = "400"
@@ -834,11 +842,13 @@ Public Property Let Drive(ByVal sName As String)
         If mCt Then
             Dim i As Long
             For i = 0 To UBound(mDrives)
-                If LCase$(mDrives(i).Name) = LCase$(sName) Then
+                If LCase$(mDrives(i).Letter) = LCase$(Left$(sName, 1)) Then
                     SendMessage hMain, CB_SETCURSEL, mDrives(i).Index, ByVal 0
                     RaiseEvent SelectionChanged(mDrives(i).Path, mDrives(i).Letter, mDrives(i).Name, mDrives(i).Type)
+                    Exit Property
                 End If
             Next
+            Err.Raise 68
         End If
     End If
 End Property
@@ -1102,6 +1112,7 @@ Public Sub RefreshDriveList()
                 mDrives(mCt).Name = sName
                 mDrives(mCt).nIcon = GetIconIndex(sDrives(i), SHGFI_SMALLICON)
                 mDrives(mCt).Index = CBX_InsertItem(hMain, mDrives(mCt).Name, mDrives(mCt).nIcon, , mCt)
+                SetOldName sDrives(i), mDrives(mCt).Letter, mCt
                 If mPrev <> "" Then
                     If sDrives(i) = mPrev Then
                         nDef = mDrives(mCt).Index
@@ -1118,6 +1129,20 @@ Public Sub RefreshDriveList()
     End If
     SendMessage hMain, CB_SETCURSEL, nDef, ByVal 0
     If mNotify Then AnalyzeAddRemove
+End Sub
+Private Sub SetOldName(sPath As String, sLetter As String, nIdx As Long)
+    Dim sTmp As String
+    Dim sOld As String
+    Dim dwFlag As Long
+    sOld = LCase$(sLetter) & ":"
+    sTmp = String$(34, 0)
+    If GetVolumeInformationW(StrPtr(sPath), StrPtr(sTmp), 34, ByVal 0, 0, dwFlag, 0, 0) Then
+        If InStr(sTmp, vbNullChar) > 1 Then
+            sTmp = Left$(sTmp, InStr(sTmp, vbNullChar) - 1)
+            sOld = sOld & " [" & sTmp & "]"
+        End If
+    End If
+    mDrives(nIdx).NameOld = sOld
 End Sub
 Private Function CBX_InsertItem(ByVal hCBoxEx As LongPtr, sText As String, Optional iImage As Long = -1, Optional iOverlay As Long = -1, Optional lParam As Long = 0, Optional iItem As Long = -1, Optional iIndent As Long = 0, Optional iImageSel As Long = -1) As Long
 
