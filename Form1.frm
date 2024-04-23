@@ -45,6 +45,7 @@ Begin VB.Form Form1
       Width           =   3735
       _ExtentX        =   6588
       _ExtentY        =   556
+      ComboStyle      =   1
    End
    Begin VB.CommandButton Command1 
       Caption         =   "Show Path"
