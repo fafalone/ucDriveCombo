@@ -1,4 +1,4 @@
-# ucDriveCombo v1.3 (Updated 23 Apr 2024)
+# ucDriveCombo v1.4 (Updated 25 Apr 2024)
 Modernized DriveList control replacement
 
 ![image](https://github.com/fafalone/ucDriveCombo/assets/7834493/ce6113be-5546-4afd-8956-dca8b049d1c7)
@@ -15,7 +15,7 @@ Modernized DriveList control replacement
 
 ```
 '********************************************************************
-' ucDriveCombo v1.3
+' ucDriveCombo v1.4
 ' A Modern DriveList Replacement
 ' by Jon Johnson
 '
@@ -39,6 +39,12 @@ Modernized DriveList control replacement
 '   -Can optionally classify USB hard drives as removable.
 '
 ' Changelog:
+'  Version 1.4 (Released 25 Apr 2024)
+'   -The .Drive legacy method now returns the same path for
+'    mapped network drives.
+'   -There's now a drive icon and control name/version in the
+'    combobox during design mode instead of a generic combo.
+'
 '  Version 1.3 (Released 23 Apr 2024)
 '   -The .Drive property now returns names identical to the legacy
 '     DriveList control, and when set, behaves identical to that
