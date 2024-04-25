@@ -12,12 +12,20 @@ Begin VB.Form Form1
    ScaleHeight     =   3915
    ScaleWidth      =   4350
    StartUpPosition =   3  'Windows Default
+   Begin VB.CommandButton Command4 
+      Caption         =   "Show Path (legacy)"
+      Height          =   615
+      Left            =   1200
+      TabIndex        =   5
+      Top             =   1440
+      Width           =   1935
+   End
    Begin VB.CommandButton Command3 
       Caption         =   "Refresh List"
       Height          =   615
       Left            =   1200
       TabIndex        =   4
-      Top             =   3000
+      Top             =   3240
       Width           =   1935
    End
    Begin VB.CommandButton Command2 
@@ -25,7 +33,7 @@ Begin VB.Form Form1
       Height          =   615
       Left            =   1200
       TabIndex        =   3
-      Top             =   2280
+      Top             =   2520
       Width           =   1935
    End
    Begin VB.TextBox Text1 
@@ -34,11 +42,11 @@ Begin VB.Form Form1
       MaxLength       =   1
       TabIndex        =   2
       Text            =   "D"
-      Top             =   1920
+      Top             =   2160
       Width           =   375
    End
    Begin ucDriveComboTest.ucDriveCombo ucDriveCombo1 
-      Height          =   315
+      Height          =   360
       Left            =   360
       TabIndex        =   1
       Top             =   240
@@ -52,7 +60,7 @@ Begin VB.Form Form1
       Height          =   615
       Left            =   1200
       TabIndex        =   0
-      Top             =   840
+      Top             =   720
       Width           =   1935
    End
 End
@@ -75,6 +83,10 @@ Private Sub Command3_Click()
     ucDriveCombo1.RefreshDriveList
 End Sub
  
+
+Private Sub Command4_Click()
+MsgBox ucDriveCombo1.Drive
+End Sub
 
 Private Sub ucDriveCombo1_SelectionChanged(ByVal NewPath As String, ByVal NewLetter As String, ByVal NewName As String, ByVal NewDriveType As Long)
     Debug.Print "Selected drive changed to " & NewPath
