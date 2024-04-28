@@ -17,7 +17,7 @@ Attribute VB_Exposed = False
 Option Explicit
 
 '********************************************************************
-' ucDriveCombo v1.4
+' ucDriveCombo v1.5
 ' A Modern DriveList Replacement
 ' by Jon Johnson
 '
@@ -41,7 +41,11 @@ Option Explicit
 '   -Can optionally classify USB hard drives as removable.
 '
 ' Changelog:
-'  Version 1.4
+'  Version 1.5 (Released 27 Apr 2024)
+'   -(Bug fix) NoFixedUSB option not working
+'   -(Bug fix) Drive type always reported as 0
+'
+'  Version 1.4 (Released 25 Apr 2024)
 '   -The .Drive legacy method now returns the same path for
 '    mapped network drives.
 '   -There's now a drive icon and control name/version in the
@@ -171,30 +175,30 @@ End Type
 
 Private Const WS_CHILD = &H40000000
 Private Const WS_VISIBLE = &H10000000
-Private Const WS_TABSTOP = &H10000
+Private Const WS_TABSTOP = &H00010000
 Private Const INVALID_HANDLE_VALUE = -1&
 Private Const S_OK = 0
 Private Const MAX_PATH                  As Long = 260
 Private Const EM_SETREADONLY = &HCF
-Private Const WM_DESTROY = &H2
-Private Const WM_NOTIFYFORMAT = &H55
-Private Const WM_COMMAND = &H111
-Private Const WM_DEVICECHANGE = &H219
+Private Const WM_DESTROY = &H0002
+Private Const WM_NOTIFYFORMAT = &H0055
+Private Const WM_COMMAND = &H0111
+Private Const WM_DEVICECHANGE = &H0219
 Private Const NFR_UNICODE = 2
 Private Const LOGPIXELSY = 90
 
 Private Enum NETWK_NAME_INFOLEVEL
-    UNIVERSAL_NAME_INFO_LEVEL = &H1
-    REMOTE_NAME_INFO_LEVEL = &H2
+    UNIVERSAL_NAME_INFO_LEVEL = &H00000001
+    REMOTE_NAME_INFO_LEVEL = &H00000002
 End Enum
 Private Type UNIVERSAL_NAME_INFOW
     lpUniversalName As LongPtr
 End Type
 
 Private Enum FileShareMode
-    FILE_SHARE_READ = &H1
-    FILE_SHARE_WRITE = &H2
-    FILE_SHARE_DELETE = &H4
+    FILE_SHARE_READ = &H00000001
+    FILE_SHARE_WRITE = &H00000002
+    FILE_SHARE_DELETE = &H00000004
 End Enum
 Private Enum CreateFileDisposition
     CREATE_NEW = 1
@@ -223,14 +227,14 @@ Private Type OVERLAPPED
 End Type
 
 Private Enum SIGDN
-    SIGDN_NORMALDISPLAY = &H0
+    SIGDN_NORMALDISPLAY = &H00000000
     SIGDN_PARENTRELATIVEPARSING = &H80018001
     SIGDN_DESKTOPABSOLUTEPARSING = &H80028000
     SIGDN_PARENTRELATIVEEDITING = &H80031001
-    SIGDN_DESKTOPABSOLUTEEDITING = &H8004C000
+    SIGDN_DESKTOPABSOLUTEEDITING = &H8004c000
     SIGDN_FILESYSPATH = &H80058000
     SIGDN_URL = &H80068000
-    SIGDN_PARENTRELATIVEFORADDRESSBAR = &H8007C001
+    SIGDN_PARENTRELATIVEFORADDRESSBAR = &H8007c001
     SIGDN_PARENTRELATIVE = &H80080001
     SIGDN_PARENTRELATIVEFORUI = &H80094001
 End Enum
@@ -288,30 +292,30 @@ Private Enum SHGFI_flags
 End Enum
 
 Private Enum DEVICE_NOTIFY_FLAGS
-    DEVICE_NOTIFY_WINDOW_HANDLE = &H0
-    DEVICE_NOTIFY_SERVICE_HANDLE = &H1
-    DEVICE_NOTIFY_CALLBACK = &H2
-    DEVICE_NOTIFY_ALL_INTERFACE_CLASSES = &H4
+    DEVICE_NOTIFY_WINDOW_HANDLE = &H00000000
+    DEVICE_NOTIFY_SERVICE_HANDLE = &H00000001
+    DEVICE_NOTIFY_CALLBACK = &H00000002
+    DEVICE_NOTIFY_ALL_INTERFACE_CLASSES = &H00000004
 End Enum
 Private Enum WMDEVICECHANGE_wParam
-    DBT_APPYBEGIN = &H0
-    DBT_APPYEND = &H1
-    DBT_DEVNODES_CHANGED = &H7
-    DBT_QUERYCHANGECONFIG = &H17
-    DBT_CONFIGCHANGED = &H18
-    DBT_CONFIGCHANGECANCELED = &H19
-    DBT_MONITORCHANGE = &H1B
-    DBT_SHELLLOGGEDON = &H20
-    DBT_CONFIGMGAPI32 = &H22
-    DBT_VXDINITCOMPLETE = &H23
+    DBT_APPYBEGIN = &H0000
+    DBT_APPYEND = &H0001
+    DBT_DEVNODES_CHANGED = &H0007
+    DBT_QUERYCHANGECONFIG = &H0017
+    DBT_CONFIGCHANGED = &H0018
+    DBT_CONFIGCHANGECANCELED = &H0019
+    DBT_MONITORCHANGE = &H001B
+    DBT_SHELLLOGGEDON = &H0020
+    DBT_CONFIGMGAPI32 = &H0022
+    DBT_VXDINITCOMPLETE = &H0023
     DBT_VOLLOCKQUERYLOCK = &H8041&
     DBT_VOLLOCKLOCKTAKEN = &H8042&
     DBT_VOLLOCKLOCKFAILED = &H8043&
     DBT_VOLLOCKQUERYUNLOCK = &H8044&
     DBT_VOLLOCKLOCKRELEASED = &H8045&
     DBT_VOLLOCKUNLOCKFAILED = &H8046&
-    DBT_NO_DISK_SPACE = &H47
-    DBT_LOW_DISK_SPACE = &H48
+    DBT_NO_DISK_SPACE = &H0047
+    DBT_LOW_DISK_SPACE = &H0048
     DBT_CONFIGMGPRIVATE = &H7FFF
     DBT_DEVICEARRIVAL = &H8000&  ' system detected a new device
     DBT_DEVICEQUERYREMOVE = &H8001&  ' wants to remove, may fail
@@ -324,19 +328,19 @@ Private Enum WMDEVICECHANGE_wParam
     DBT_USERDEFINED = &HFFFF&
 End Enum
 Private Enum DBT_Flags
-    DBTF_RESOURCE = &H1         ' network resource
-    DBTF_XPORT = &H2         ' new transport coming or going
-    DBTF_SLOWNET = &H4         ' new incoming transport is slow
+    DBTF_RESOURCE = &H00000001  ' network resource
+    DBTF_XPORT = &H00000002  ' new transport coming or going
+    DBTF_SLOWNET = &H00000004  ' new incoming transport is slow
 '  (dbcn_resource undefined for now)
 End Enum
 Private Enum DBT_DEVTYPE
-    DBT_DEVTYP_OEM = &H0         ' oem-defined device type
-    DBT_DEVTYP_DEVNODE = &H1         ' devnode number
-    DBT_DEVTYP_VOLUME = &H2         ' logical volume
-    DBT_DEVTYP_PORT = &H3         ' serial, parallel
-    DBT_DEVTYP_NET = &H4         ' network resource
-    DBT_DEVTYP_DEVICEINTERFACE = &H5         ' device interface class
-    DBT_DEVTYP_HANDLE = &H6         ' file system handle
+    DBT_DEVTYP_OEM = &H00000000  ' oem-defined device type
+    DBT_DEVTYP_DEVNODE = &H00000001  ' devnode number
+    DBT_DEVTYP_VOLUME = &H00000002  ' logical volume
+    DBT_DEVTYP_PORT = &H00000003  ' serial, parallel
+    DBT_DEVTYP_NET = &H00000004  ' network resource
+    DBT_DEVTYP_DEVICEINTERFACE = &H00000005  ' device interface class
+    DBT_DEVTYP_HANDLE = &H00000006  ' file system handle
 End Enum
 Private Type UUID
     Data1 As Long
@@ -349,7 +353,7 @@ Private Type DEV_BROADCAST_DEVICEINTERFACE
     dbcc_devicetype As DBT_DEVTYPE
     dbcc_reserved As Long
     dbcc_classguid As UUID
-    dbcc_name(0 To (MAX_PATH - 1)) As Integer  'NOTE: Buffer ubound is a guess. You may need more. It's a variable C-style array.
+    dbcc_name (0 To (MAX_PATH - 1)) As Integer 'NOTE: Buffer ubound is a guess. You may need more. It's a variable C-style array.
 End Type
 
 Private Enum SWP_Flags
@@ -386,7 +390,7 @@ Private Const CCM_SETWINDOWTHEME = (CCM_FIRST + 11)
 Private Const CCM_DPISCALE = (CCM_FIRST + 12)
 Private Const CCM_TRANSLATEACCELERATOR = &H461 '(WM_USER + 97)
 
-Private Const WM_USER = &H400
+Private Const WM_USER = &H0400
 Private Const CB_ADDSTRING = &H143
 Private Const CB_DELETESTRING = &H144
 Private Const CB_DIR = &H145
@@ -566,7 +570,7 @@ Private mDD As Boolean
 Private Const mDefDD As Boolean = True
 
 Private mBk As OLE_COLOR
-Private Const mDefBk As Long = &H8000000F
+Private Const mDefBk As Long = &H8000000F&
 
 Private mNotify As Boolean
 Private Const mDefNotify As Boolean = True
@@ -663,6 +667,7 @@ Private Sub UserControl_InitProperties() 'Handles UserControl.InitProperties
     mHP = mDefHP
     mBk = mDefBk
     mNotify = mDefNotify
+    mEnabled = mDefEnabled
 End Sub
 
 Private Sub UserControl_Resize() 'Handles UserControl.Resize
@@ -818,6 +823,7 @@ Public Property Get SelectedDriveLetter() As String
         SelectedDriveLetter = mDrives(nIdx).Letter
     End If
 End Property
+Attribute SelectedDriveLetter.VB_MemberFlags = "400"
 Public Property Let SelectedDriveLetter(ByVal sLetter As String)
     If Ambient.UserMode Then
         If mCt Then
@@ -842,6 +848,7 @@ Public Property Get SelectedDriveName() As String
         SelectedDriveName = mDrives(nIdx).Name
     End If
 End Property
+Attribute SelectedDriveName.VB_MemberFlags = "400"
 Public Property Let SelectedDriveName(ByVal sName As String)
     If Ambient.UserMode Then
         If mCt Then
@@ -866,6 +873,7 @@ Public Property Get Drive() As String
         Drive = mDrives(nIdx).NameOld
     End If
 End Property
+Attribute Drive.VB_MemberFlags = "400"
 Public Property Let Drive(ByVal sName As String)
     If Ambient.UserMode Then
         If mCt Then
@@ -892,6 +900,7 @@ Public Property Get SelectedDrivePath() As String
         SelectedDrivePath = mDrives(nIdx).Path
     End If
 End Property
+Attribute SelectedDrivePath.VB_MemberFlags = "400"
 Public Property Let SelectedDrivePath(ByVal sPath As String)
     If Ambient.UserMode Then
         If mCt Then
@@ -967,11 +976,11 @@ End Function
 Private Function GetSysImageList(uFlags As SHGFI_flags) As LongPtr
     Dim sfi As SHFILEINFOW
     Dim sSys As String
-    Dim L As Long
+    Dim l As Long
     sSys = String$(MAX_PATH, 0)
-    L = GetWindowsDirectoryW(StrPtr(sSys), MAX_PATH)
-    If L Then
-        sSys = Left$(sSys, L)
+    l = GetWindowsDirectoryW(StrPtr(sSys), MAX_PATH)
+    If l Then
+        sSys = Left$(sSys, l)
     Else
         sSys = Left$(Environ("WINDIR"), 3)
     End If
@@ -987,7 +996,7 @@ Private Function GetSysImageList(uFlags As SHGFI_flags) As LongPtr
 
     ' Private Sub UserControl_Show() Handles UserControl.Show
     Private Sub InitControl()
-    Debug.Print "UserControl_Show"
+    'Debug.Print "UserControl_Show"
     Me.BackColor = mBk
     himl = GetSysImageList(SHGFI_SMALLICON)
     Dim dwStyle As ComboBox_Styles
@@ -1017,17 +1026,17 @@ Private Function GetSysImageList(uFlags As SHGFI_flags) As LongPtr
                                 'the length of the string in the C-style variable array on the end.
                                 'It's declared with a buffer since VB/tB don't support those, but if
                                 'the buffer isn't in use, use what we'd get for sizeof() if it wasn't
-                                'used in C++.
+                                'used in C++. 
         tFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE
         tFilter.dbcc_classguid = GUID_DEVINTERFACE_VOLUME
         hNotify = RegisterDeviceNotification(hMain, tFilter, DEVICE_NOTIFY_WINDOW_HANDLE)
     Else
         Dim sSys As String
-        Dim L As Long
+        Dim l As Long
         sSys = String$(MAX_PATH, 0)
-        L = GetWindowsDirectoryW(StrPtr(sSys), MAX_PATH)
-        If L Then
-            sSys = Left$(sSys, IIf(L < 3, L, 3))
+        l = GetWindowsDirectoryW(StrPtr(sSys), MAX_PATH)
+        If l Then
+            sSys = Left$(sSys, IIf(l < 3, l, 3))
         Else
             sSys = Left$(Environ("WINDIR"), 3)
         End If
@@ -1125,7 +1134,7 @@ Public Sub RefreshDriveList()
     Dim dwAtr As Long
 
     cch = GetLogicalDriveStringsW(Len(sDriveLst), StrPtr(sDriveLst))
-    Debug.Print "cch=" & cch & ", str=" & sDriveLst
+    ' Debug.Print "cch=" & cch & ", str=" & sDriveLst
     If cch > 0 Then
         sDriveLst = Left$(sDriveLst, cch)
         sDrives = Split(sDriveLst, vbNullChar)
@@ -1139,9 +1148,12 @@ Public Sub RefreshDriveList()
                     End If
                 End If
                 If sName = "" Then sName = sDrives(i)
+                ReDim Preserve mDrives(mCt)
+                mDrives(mCt).Letter = Left$(sDrives(i), 1)
                 nType = GetDriveTypeW(StrPtr(sDrives(i)))
+                'Debug.Print sName & " type = " & nType
                 If (nType = DRIVE_FIXED) And (mHP = True) Then
-                    If IsTrueRemovable(sDrives(i)) Then
+                    If IsTrueRemovable(mDrives(mCt).Letter) Then
                         nType = DRIVE_REMOVABLE
                     End If
                 End If
@@ -1149,10 +1161,9 @@ Public Sub RefreshDriveList()
                 If (mOpt = False) And (nType = DRIVE_CDROM) Then GoTo nxt
                 If (mNet = False) And (nType = DRIVE_REMOTE) Then GoTo nxt
                 If (mUSB = False) And (nType = DRIVE_REMOVABLE) Then GoTo nxt
-                ReDim Preserve mDrives(mCt)
-                mDrives(mCt).Letter = Left$(sDrives(i), 1)
                 mDrives(mCt).Path = sDrives(i)
                 mDrives(mCt).Name = sName
+                mDrives(mCt).Type = nType
                 mDrives(mCt).nIcon = GetIconIndex(sDrives(i), SHGFI_SMALLICON)
                 mDrives(mCt).Index = CBX_InsertItem(hMain, mDrives(mCt).Name, mDrives(mCt).nIcon, , mCt)
                 SetOldName sDrives(i), mDrives(mCt).Letter, mCt
@@ -1167,7 +1178,7 @@ Public Sub RefreshDriveList()
                 End If
                 mCt = mCt + 1
             End If
-nxt:
+    nxt:                
         Next
     End If
     SendMessage hMain, CB_SETCURSEL, nDef, ByVal 0
@@ -1281,6 +1292,7 @@ Private Function IsTrueRemovable(DrvLetter As String) As Boolean
     If hVol <> INVALID_HANDLE_VALUE Then
         Call DeviceIoControl(hVol, IOCTL_STORAGE_GET_HOTPLUG_INFO, ByVal 0&, 0&, tSHI, LenB(tSHI), r, vbNullPtr)
         IsTrueRemovable = (tSHI.MediaRemovable + tSHI.DeviceHotplug > 0)
+        'Debug.Print "HotPlug on " & DrvLetter & ": MediaRemovable=" & tSHI.MediaRemovable & ", DeviceHotplug=" & tSHI.DeviceHotplug & ", MediaHotplug=" & tSHI.MediaHotplug
         CloseHandle hVol
     Else
         Debug.Print "Couldn't open drive " & DrvLetter & " for hotplug info."
@@ -1352,17 +1364,17 @@ Public Function zzCBWndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam
                     RaiseEvent SelectionChanged(mDrives(nIdx).Path, mDrives(nIdx).Letter, mDrives(nIdx).Name, mDrives(nIdx).Type)
                 Case CBN_DROPDOWN
 
-                    RaiseEvent DriveListDropdown
+                    RaiseEvent DriveListDropdown()
             
                 Case CBN_CLOSEUP
-                    RaiseEvent DriveListCloseup
+                    RaiseEvent DriveListCloseup()
             End Select
         Case WM_DESTROY
             Call UnSubclass2(hWnd, PtrCbWndProc, uIdSubclass)
     End Select
     zzCBWndProc = DefSubclassProc(hWnd, uMsg, wParam, lParam)
     Exit Function
-e0:
+    e0:
     Debug.Print "CBWndProc->Error: " & Err.Description & ", 0x" & Hex$(Err.Number)
 
 End Function

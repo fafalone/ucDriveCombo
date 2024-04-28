@@ -9,7 +9,7 @@ Class ucDriveCombo
 Option Explicit
 
 '********************************************************************
-' ucDriveCombo v1.4
+' ucDriveCombo v1.5
 ' A Modern DriveList Replacement
 ' by Jon Johnson
 '
@@ -33,6 +33,10 @@ Option Explicit
 '   -Can optionally classify USB hard drives as removable.
 '
 ' Changelog:
+'  Version 1.5 (Released 27 Apr 2024)
+'   -(Bug fix) NoFixedUSB option not working
+'   -(Bug fix) Drive type always reported as 0
+'
 '  Version 1.4 (Released 25 Apr 2024)
 '   -The .Drive legacy method now returns the same path for
 '    mapped network drives.
@@ -655,6 +659,7 @@ Private Sub UserControl_InitProperties() 'Handles UserControl.InitProperties
     mHP = mDefHP
     mBk = mDefBk
     mNotify = mDefNotify
+    mEnabled = mDefEnabled
 End Sub
 
 Private Sub UserControl_Resize() 'Handles UserControl.Resize
@@ -983,7 +988,7 @@ Private Function GetSysImageList(uFlags As SHGFI_flags) As LongPtr
 
     ' Private Sub UserControl_Show() Handles UserControl.Show
     Private Sub InitControl()
-    Debug.Print "UserControl_Show"
+    'Debug.Print "UserControl_Show"
     Me.BackColor = mBk
     himl = GetSysImageList(SHGFI_SMALLICON)
     Dim dwStyle As ComboBox_Styles
@@ -1121,7 +1126,7 @@ Public Sub RefreshDriveList()
     Dim dwAtr As Long
 
     cch = GetLogicalDriveStringsW(Len(sDriveLst), StrPtr(sDriveLst))
-    Debug.Print "cch=" & cch & ", str=" & sDriveLst
+    ' Debug.Print "cch=" & cch & ", str=" & sDriveLst
     If cch > 0 Then
         sDriveLst = Left$(sDriveLst, cch)
         sDrives = Split(sDriveLst, vbNullChar)
@@ -1135,9 +1140,12 @@ Public Sub RefreshDriveList()
                     End If
                 End If
                 If sName = "" Then sName = sDrives(i)
+                ReDim Preserve mDrives(mCt)
+                mDrives(mCt).Letter = Left$(sDrives(i), 1)
                 nType = GetDriveTypeW(StrPtr(sDrives(i)))
+                'Debug.Print sName & " type = " & nType
                 If (nType = DRIVE_FIXED) And (mHP = True) Then
-                    If IsTrueRemovable(sDrives(i)) Then
+                    If IsTrueRemovable(mDrives(mCt).Letter) Then
                         nType = DRIVE_REMOVABLE
                     End If
                 End If
@@ -1145,10 +1153,9 @@ Public Sub RefreshDriveList()
                 If (mOpt = False) And (nType = DRIVE_CDROM) Then GoTo nxt
                 If (mNet = False) And (nType = DRIVE_REMOTE) Then GoTo nxt
                 If (mUSB = False) And (nType = DRIVE_REMOVABLE) Then GoTo nxt
-                ReDim Preserve mDrives(mCt)
-                mDrives(mCt).Letter = Left$(sDrives(i), 1)
                 mDrives(mCt).Path = sDrives(i)
                 mDrives(mCt).Name = sName
+                mDrives(mCt).Type = nType
                 mDrives(mCt).nIcon = GetIconIndex(sDrives(i), SHGFI_SMALLICON)
                 mDrives(mCt).Index = CBX_InsertItem(hMain, mDrives(mCt).Name, mDrives(mCt).nIcon, , mCt)
                 SetOldName sDrives(i), mDrives(mCt).Letter, mCt
@@ -1277,6 +1284,7 @@ Private Function IsTrueRemovable(DrvLetter As String) As Boolean
     If hVol <> INVALID_HANDLE_VALUE Then
         Call DeviceIoControl(hVol, IOCTL_STORAGE_GET_HOTPLUG_INFO, ByVal 0&, 0&, tSHI, LenB(tSHI), r, vbNullPtr)
         IsTrueRemovable = (tSHI.MediaRemovable + tSHI.DeviceHotplug > 0)
+        'Debug.Print "HotPlug on " & DrvLetter & ": MediaRemovable=" & tSHI.MediaRemovable & ", DeviceHotplug=" & tSHI.DeviceHotplug & ", MediaHotplug=" & tSHI.MediaHotplug
         CloseHandle hVol
     Else
         Debug.Print "Couldn't open drive " & DrvLetter & " for hotplug info."
