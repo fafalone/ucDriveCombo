@@ -9,7 +9,7 @@ Class ucDriveCombo
 Option Explicit
 
 '********************************************************************
-' ucDriveCombo v1.5
+' ucDriveCombo v1.6
 ' A Modern DriveList Replacement
 ' by Jon Johnson
 '
@@ -33,6 +33,11 @@ Option Explicit
 '   -Can optionally classify USB hard drives as removable.
 '
 ' Changelog:
+'  Version 1.6 (Released 19 May 2024)
+'   -Added ShowHiddenDrives option, default false, to show/hide
+'    drives that are hidden from the user in Explorer.
+'   -Changed default BackColor to standard CB's white.
+'
 '  Version 1.5 (Released 27 Apr 2024)
 '   -(Bug fix) NoFixedUSB option not working
 '   -(Bug fix) Drive type always reported as 0
@@ -117,6 +122,9 @@ Private Const WC_COMBOBOXEX = "ComboBoxEx32"
     Private Declare PtrSafe Function WNetGetUniversalNameW Lib "mpr.dll" (ByVal lpLocalPath As LongPtr, ByVal dwInfoLevel As NETWK_NAME_INFOLEVEL, lpBuffer As Any, lpBufferSize As Long) As Long
     Private Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As LongPtr)
     Private Declare PtrSafe Function lstrlenW Lib "kernel32" (lpString As Any) As Long
+    Private Declare PtrSafe Function RegOpenKeyExW Lib "advapi32" ([TypeHint(RegKeyspace)] ByVal hKey As LongPtr, ByVal lpSubKey As LongPtr, ByVal ulOptions As RegOptions, ByVal samDesired As REGSAM, phkResult As LongPtr) As Long
+    Private DeclareWide PtrSafe Function RegQueryValueExW Lib "advapi32" ([TypeHint(RegKeyspace)] ByVal hKey As LongPtr, ByVal lpValueName As LongPtr, ByVal lpReserved As LongPtr, lpType As REGTYPES, lpData As Any, lpcbData As Long) As Long
+    Private Declare PtrSafe Function RegCloseKey Lib "advapi32" ([TypeHint(RegKeyspace)] ByVal hKey As LongPtr) As Long
 #Else
     Private Enum LongPtr
         vbNullPtr
@@ -156,7 +164,10 @@ Private Const WC_COMBOBOXEX = "ComboBoxEx32"
     Private Declare Function WNetGetUniversalNameW Lib "mpr.dll" (ByVal lpLocalPath As LongPtr, ByVal dwInfoLevel As NETWK_NAME_INFOLEVEL, lpBuffer As Any, lpBufferSize As Long) As Long
     Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As LongPtr)
     Private Declare Function lstrlenW Lib "kernel32" (lpString As Any) As Long
-    #End If
+    Private Declare Function RegOpenKeyExW Lib "advapi32" (ByVal hKey As LongPtr, ByVal lpSubKey As LongPtr, ByVal ulOptions As RegOptions, ByVal samDesired As REGSAM, phkResult As LongPtr) As Long
+    Private Declare Function RegQueryValueExW Lib "advapi32" (ByVal hKey As LongPtr, ByVal lpValueName As LongPtr, ByVal lpReserved As LongPtr, lpType As REGTYPES, lpData As Any, lpcbData As Long) As Long
+    Private Declare Function RegCloseKey Lib "advapi32" (ByVal hKey As LongPtr) As Long
+#End If
 
 Private Type RECT
     Left As Long
@@ -178,7 +189,86 @@ Private Const WM_COMMAND = &H0111
 Private Const WM_DEVICECHANGE = &H0219
 Private Const NFR_UNICODE = 2
 Private Const LOGPIXELSY = 90
+Private Const ERROR_SUCCESS As Long = 0
 
+Public Enum REGTYPES
+    REG_NONE = 0
+    REG_SZ = 1
+    REG_EXPAND_SZ = 2
+    REG_BINARY = 3
+    REG_DWORD = 4
+    REG_DWORD_BIG_ENDIAN = 5
+    REG_DWORD_LITTLE_ENDIAN = 4
+    REG_LINK = 6
+    REG_MULTI_SZ = 7
+    REG_RESOURCE_LIST = 8
+    REG_FULL_RESOURCE_DESCRIPTOR = 9
+    REG_RESOURCE_REQUIREMENTS_LIST = &HA
+    REG_QWORD = &HB
+    REG_QWORD_LITTLE_ENDIAN = &HB
+End Enum
+Public Enum StandardAccessTypes
+    DELETE = (&H00010000)
+    READ_CONTROL = (&H00020000)
+    WRITE_DAC = (&H00040000)
+    WRITE_OWNER = (&H00080000)
+    SYNCHRONIZE = (&H00100000)
+
+    STANDARD_RIGHTS_REQUIRED = (&H000F0000)
+
+    STANDARD_RIGHTS_READ = (READ_CONTROL)
+    STANDARD_RIGHTS_WRITE = (READ_CONTROL)
+    STANDARD_RIGHTS_EXECUTE = (READ_CONTROL)
+
+    STANDARD_RIGHTS_ALL = (&H001F0000)
+
+    SPECIFIC_RIGHTS_ALL = (&H0000FFFF&)
+
+' //
+' // AccessSystemAcl access type
+' //
+
+    ACCESS_SYSTEM_SECURITY = (&H01000000)
+    MAXIMUM_ALLOWED = (&H02000000)
+End Enum
+Public Enum REGSAM
+    KEY_QUERY_VALUE = (&H0001)
+    KEY_SET_VALUE = (&H0002)
+    KEY_CREATE_SUB_KEY = (&H0004)
+    KEY_ENUMERATE_SUB_KEYS = (&H0008)
+    KEY_NOTIFY = (&H0010)
+    KEY_CREATE_LINK = (&H0020)
+    KEY_WOW64_32KEY = (&H0200)
+    KEY_WOW64_64KEY = (&H0100)
+    KEY_WOW64_RES = (&H0300)
+    KEY_READ = ((STANDARD_RIGHTS_READ Or KEY_QUERY_VALUE Or KEY_ENUMERATE_SUB_KEYS Or KEY_NOTIFY) And (Not SYNCHRONIZE))
+    KEY_WRITE = ((STANDARD_RIGHTS_WRITE Or KEY_SET_VALUE Or KEY_CREATE_SUB_KEY) And (Not SYNCHRONIZE))
+    KEY_EXECUTE = ((KEY_READ) And (Not SYNCHRONIZE))
+    KEY_ALL_ACCESS = ((STANDARD_RIGHTS_ALL Or KEY_QUERY_VALUE Or KEY_SET_VALUE Or KEY_CREATE_SUB_KEY Or KEY_ENUMERATE_SUB_KEYS Or KEY_NOTIFY Or KEY_CREATE_LINK) And (Not SYNCHRONIZE))
+End Enum
+Public Enum RegOptions
+    REG_OPTION_RESERVED = (&H00000000)  ' Parameter is reserved
+    REG_OPTION_NON_VOLATILE = (&H00000000)  ' Key is preserved when system is rebooted
+    REG_OPTION_VOLATILE = (&H00000001)  ' Key is not preserved when system is rebooted
+    REG_OPTION_CREATE_LINK = (&H00000002)  ' Created key is a symbolic link
+    REG_OPTION_BACKUP_RESTORE = (&H00000004)  ' open for backup or restore special access rules privilege required
+    REG_OPTION_OPEN_LINK = (&H00000008)  ' Open symbolic link
+    REG_OPTION_DONT_VIRTUALIZE = (&H00000010)  ' Disable Open/Read/Write virtualization for this open and the resulting handle.
+    REG_LEGAL_OPTION = (REG_OPTION_RESERVED Or REG_OPTION_NON_VOLATILE Or REG_OPTION_VOLATILE Or REG_OPTION_CREATE_LINK Or REG_OPTION_BACKUP_RESTORE Or REG_OPTION_OPEN_LINK Or REG_OPTION_DONT_VIRTUALIZE)
+    REG_OPEN_LEGAL_OPTION = (REG_OPTION_RESERVED Or REG_OPTION_BACKUP_RESTORE Or REG_OPTION_OPEN_LINK Or REG_OPTION_DONT_VIRTUALIZE)
+End Enum
+Public Enum RegKeyspace
+    HKEY_CLASSES_ROOT = &H80000000
+    HKEY_CURRENT_USER = &H80000001
+    HKEY_LOCAL_MACHINE = &H80000002
+    HKEY_USERS = &H80000003
+    HKEY_PERFORMANCE_DATA = &H80000004
+    HKEY_PERFORMANCE_TEXT = &H80000050
+    HKEY_PERFORMANCE_NLSTEXT = &H80000060
+    HKEY_CURRENT_CONFIG = &H80000005
+    HKEY_DYN_DATA = &H80000006
+    HKEY_CURRENT_USER_LOCAL_SETTINGS = &H80000007
+End Enum
 Private Enum NETWK_NAME_INFOLEVEL
     UNIVERSAL_NAME_INFO_LEVEL = &H00000001
     REMOTE_NAME_INFO_LEVEL = &H00000002
@@ -562,13 +652,16 @@ Private mDD As Boolean
 Private Const mDefDD As Boolean = True
 
 Private mBk As OLE_COLOR
-Private Const mDefBk As Long = &H8000000F&
+Private Const mDefBk As Long = &HFFFFFF
 
 Private mNotify As Boolean
 Private Const mDefNotify As Boolean = True
 
 Private mEnabled As Boolean
 Private Const mDefEnabled As Boolean = True
+
+Private mShowHidden As Boolean
+Private Const mDefShowHidden As Boolean = False
 
 #If TWINBASIC Then
 [EnumId("55209AC8-57EA-4644-AA85-4974AA31E100")]
@@ -631,6 +724,7 @@ Private Sub UserControl_ReadProperties(PropBag As PropertyBag) 'Handles UserCont
     mBk = PropBag.ReadProperty("BackColor", mDefBk)
     mNotify = PropBag.ReadProperty("MonitorChanges", mDefNotify)
     mEnabled = PropBag.ReadProperty("Enabled", mDefEnabled)
+    mShowHidden = PropBag.ReadProperty("ShowHiddenDrives", mDefShowHidden)
     InitControl
 End Sub
 
@@ -646,6 +740,7 @@ Private Sub UserControl_WriteProperties(PropBag As PropertyBag) 'Handles UserCon
     PropBag.WriteProperty "BackColor", mBk, mDefBk
     PropBag.WriteProperty "MonitorChanges", mNotify, mDefNotify
     PropBag.WriteProperty "Enabled", mEnabled, mDefEnabled
+    PropBag.WriteProperty "ShowHiddenDrives", mShowHidden, mDefShowHidden
 End Sub
 
 Private Sub UserControl_InitProperties() 'Handles UserControl.InitProperties
@@ -660,6 +755,7 @@ Private Sub UserControl_InitProperties() 'Handles UserControl.InitProperties
     mBk = mDefBk
     mNotify = mDefNotify
     mEnabled = mDefEnabled
+    mShowHidden = mDefShowHidden
 End Sub
 
 Private Sub UserControl_Resize() 'Handles UserControl.Resize
@@ -755,6 +851,15 @@ Attribute ShowNetworkDrives.VB_Description = "Include mapped network drives in t
 Public Property Let ShowNetworkDrives(ByVal Value As Boolean)
     If Value <> mNet Then
         mNet = Value
+        If Ambient.UserMode Then RefreshDriveList
+    End If
+End Property
+
+Public Property Get ShowHiddenDrives() As Boolean: ShowHiddenDrives = mShowHidden: End Property
+Attribute ShowHiddenDrives.VB_Description = "Show drives hidden from the user in Explorer."
+Public Property Let ShowHiddenDrives(ByVal Value As Boolean)
+    If Value <> mShowHidden Then
+        mShowHidden = Value
         If Ambient.UserMode Then RefreshDriveList
     End If
 End Property
@@ -1153,6 +1258,7 @@ Public Sub RefreshDriveList()
                 If (mOpt = False) And (nType = DRIVE_CDROM) Then GoTo nxt
                 If (mNet = False) And (nType = DRIVE_REMOTE) Then GoTo nxt
                 If (mUSB = False) And (nType = DRIVE_REMOVABLE) Then GoTo nxt
+                If (mShowHidden = False) And (IsDriveHidden(mDrives(mCt).Letter) = True) Then GoTo nxt
                 mDrives(mCt).Path = sDrives(i)
                 mDrives(mCt).Name = sName
                 mDrives(mCt).Type = nType
@@ -1291,6 +1397,35 @@ Private Function IsTrueRemovable(DrvLetter As String) As Boolean
     End If
 End Function
 
+Private Function IsDriveHidden(ByVal sLetter As String) As Boolean
+    Dim dwLetter As Long
+    Dim dwHidden As Long
+    Dim lRet As Long
+    lRet = RegGetDWORD(HKEY_LOCAL_MACHINE, "SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer", "NoDrives", dwHidden)
+    If dwHidden = 0 Then Exit Function
+    dwLetter = 2 ^ (Asc(LCase$(sLetter)) - 97)
+    If dwHidden And dwLetter Then
+        IsDriveHidden = True
+    End If
+    ' Debug.Print "IsDriveHidden(" & sLetter & ")=" & IsDriveHidden
+End Function
+Private Function RegGetDWORD(ByVal hKeyspace As LongPtr, sPath As String, sKey As String, pdwReturn As Long) As Long
+    Dim hKey As LongPtr
+    Dim lRet As Long
+    Dim lDataLen As Long: lDataLen = 4
+    Dim lType As Long
+    lRet = RegOpenKeyExW(hKeyspace, StrPtr(sPath), 0, KEY_QUERY_VALUE, hKey)
+    If lRet = ERROR_SUCCESS Then
+        lRet = RegQueryValueExW(hKey, StrPtr(sKey), 0, lType, pdwReturn, lDataLen)
+        If lRet <> ERROR_SUCCESS Then
+            Debug.Print "RegGetDword failed to retrieve data from key, error " & lRet '& ": " & GetSystemErrorString(lRet)
+        End If
+        RegCloseKey(hKey)
+    Else
+        Debug.Print "RegGetDword failed to open requested key, error " & lRet '& ": " & GetSystemErrorString(lRet)
+    End If
+    RegGetDWORD = lRet
+End Function
 Private Function LPWSTRtoStr(lPtr As LongPtr, Optional ByVal fFree As Boolean = True) As String
     SysReAllocStringW VarPtr(LPWSTRtoStr), lPtr
     If fFree Then
@@ -1371,9 +1506,8 @@ Public Function zzCBWndProc(ByVal hWnd As Long, ByVal uMsg As Long, ByVal wParam
 
 End Function
 
-
-
 End Class
+
 
 Module mUCDCHelper
     Option Explicit
